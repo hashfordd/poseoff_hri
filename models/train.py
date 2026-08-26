@@ -16,10 +16,34 @@ def train(learning_rate, batch_size, epochs):
     train_dataset = flowfusionDataset('Dataset_UCF101/sorted_flow_poses/train')
     test_dataset = flowfusionDataset('Dataset_UCF101/sorted_flow_poses/test')
 
+    for name, ds in (("train", train_dataset), ("test", test_dataset)):
+        if len(ds) == 0:
+            raise RuntimeError(
+                f"No .npy samples found under Dataset_UCF101/sorted_flow_poses/{name}"
+            )
+
     train_loader  = DataLoader(train_dataset, batch_size=batch_size, shuffle = True, collate_fn=dynamic_collate_fn)
     test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle = True,  collate_fn=dynamic_collate_fn)
 
-    model = transformer(d_model=512, num_heads=8, num_layers=6, d_ff=2048, dropout=0.1, input_dim=1700, num_classes=len(train_dataset.classes)).to(device)
+    # Derive the feature width from the data instead of hardcoding it. The old
+    # literal 1700 is 2 * window_size**2 * 17 * 2 evaluated at window_size=5, so
+    # it only agreed with the extraction pipeline by coincidence. Changing the
+    # window anywhere upstream produced a matmul shape error pointing nowhere
+    # near the real cause.
+    sample_x, _ = train_dataset[0]
+    _, C, V, M = sample_x.shape
+    input_dim = C * V * M
+    print(f"input_dim={input_dim} derived from sample shape {tuple(sample_x.shape)} (C={C}, V={V}, M={M})")
+
+    test_x, _ = test_dataset[0]
+    if test_x.shape[1:] != sample_x.shape[1:]:
+        raise ValueError(
+            f"train and test features disagree: train {tuple(sample_x.shape[1:])} "
+            f"vs test {tuple(test_x.shape[1:])}. Both splits must come from the "
+            f"same extraction run."
+        )
+
+    model = transformer(d_model=512, num_heads=8, num_layers=6, d_ff=2048, dropout=0.1, input_dim=input_dim, num_classes=len(train_dataset.classes)).to(device)
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
