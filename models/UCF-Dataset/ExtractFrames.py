@@ -6,7 +6,7 @@ from glob import glob
 import numpy as np
 import io
 import torch
-from utils import flowpose_lk, flowpose_lk, get_poses
+from utils import flowpose_lk, flowpose_lk, get_poses, resolve_device
 from ultralytics import YOLO
 
 def process_single_video(args):
@@ -31,7 +31,7 @@ def process_single_video(args):
     cap.release()
     return frames, video_path
 
-def apply_poseOFF(video_sequence, pose_model, window_size, threshold, dilation):
+def apply_poseOFF(video_sequence, pose_model, window_size, threshold, dilation, device=None):
 
     print(f"Total frames: {len(video_sequence)}")
 
@@ -58,7 +58,7 @@ def apply_poseOFF(video_sequence, pose_model, window_size, threshold, dilation):
 
         # Pose detection runs on the colour frame, matching pose.py. YOLO pose
         # expects 3 channel BGR; the greyscale frames exist only for flowpose_lk.
-        poses = get_poses(frame1, pose_model, threshold=threshold)
+        poses = get_poses(frame1, pose_model, threshold=threshold, device=device)
 
         flow_poses, p0, p1 = flowpose_lk(frame1_grey, frame2_grey, poses,  window_size, threshold, dilation)
 
@@ -83,7 +83,9 @@ def apply_poseOFF(video_sequence, pose_model, window_size, threshold, dilation):
     return video_tensor.detach().cpu().numpy()
 
 def extract_dataset_frames(dataset_dir, output_dir, max_workers, pose_model,
-                           window_size=5, threshold=0.2, dilation=1):
+                           window_size=5, threshold=0.2, dilation=1, device=None):
+    device = resolve_device(device)
+    print(f"Running pose inference on device: {device}")
     print("Searching for UCF101 .avi files...")
     video_paths = sorted(glob(os.path.join(dataset_dir, "**", "*.avi"), recursive=True))
     print(f"Found {len(video_paths)} videos.")
@@ -128,7 +130,8 @@ def extract_dataset_frames(dataset_dir, output_dir, max_workers, pose_model,
             # Each video is handed over whole. Passing individual frames here is
             # what made apply_poseOFF index pixel rows as if they were frames.
             video_numpy = apply_poseOFF(frames, pose_model, window_size=window_size,
-                                        threshold=threshold, dilation=dilation)
+                                        threshold=threshold, dilation=dilation,
+                                        device=device)
 
             if video_numpy is None:
                 skipped += 1

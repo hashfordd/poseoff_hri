@@ -24,8 +24,23 @@ def get_norm_flows(img1, img2, alpha=1):
     return norm_flow
 
 
-def get_poses(frame, pose_model, threshold=0.2):
-    results = pose_model(frame, device='cuda', verbose=False)
+def resolve_device(device=None):
+    """Pick an inference device, preferring an explicit choice.
+
+    Ultralytics raises outright on device='cuda' when no NVIDIA GPU is present,
+    so hardcoding it made the extraction script and the live demo unrunnable on
+    CPU-only machines and Apple Silicon.
+    """
+    if device is not None:
+        return device
+    if torch.cuda.is_available():
+        return 'cuda'
+    if getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+        return 'mps'
+    return 'cpu'
+
+def get_poses(frame, pose_model, threshold=0.2, device=None):
+    results = pose_model(frame, device=resolve_device(device), verbose=False)
     result = results[0]
     # data output shape: ((x,y,conf.), keypoints, bodies)
     poses = torch.zeros(3, 17, 2)
