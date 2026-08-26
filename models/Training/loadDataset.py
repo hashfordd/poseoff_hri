@@ -34,10 +34,19 @@ class flowfusionDataset(Dataset):
 def dynamic_collate_fn(batch):
     # batch is a list of tuples: [(tensor_sample_1, label_1), (tensor_sample_2, label_2), ...]
     sequences, labels = zip(*batch)
-    
+
+    lengths = torch.tensor([s.shape[0] for s in sequences], dtype=torch.long)
+
     # pad_sequence pads along the first dimension (T) to match the longest sequence in this batch
     # batch_first=True outputs shape: (Batch, Max_T_in_batch, C*W, V, M)
     padded_sequences = rnn.pad_sequence(sequences, batch_first=True, padding_value=0.0)
     labels = torch.stack(labels)
-    
-    return padded_sequences, labels
+
+    # True where the timestep is real, False where it is padding. Without this the
+    # model cannot tell padding from signal: the input projection has a bias, so
+    # padded timesteps are not zero downstream, they carry a learned constant plus
+    # a positional encoding.
+    max_len = padded_sequences.shape[1]
+    mask = torch.arange(max_len)[None, :] < lengths[:, None]
+
+    return padded_sequences, labels, mask

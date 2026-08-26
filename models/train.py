@@ -30,11 +30,12 @@ def train(learning_rate, batch_size, epochs):
 
         total_loss = 0
         loss_arr = []
-        for batch_x, batch_y in train_loader:
+        for batch_x, batch_y, batch_mask in train_loader:
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            batch_mask = batch_mask.to(device)
 
             optimizer.zero_grad()
-            outputs = model(batch_x)
+            outputs = model(batch_x, mask=batch_mask)
             loss = criterion(outputs, batch_y)
             loss.backward()
 
@@ -55,10 +56,11 @@ def train(learning_rate, batch_size, epochs):
         total_val_loss = 0 
         val_loss_arr = []
         with torch.no_grad():
-            for batch_x, batch_y in test_loader:
+            for batch_x, batch_y, batch_mask in test_loader:
                 batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+                batch_mask = batch_mask.to(device)
 
-                outputs = model(batch_x)
+                outputs = model(batch_x, mask=batch_mask)
                 val_loss = criterion(outputs, batch_y)
                 _, predicted = torch.max(outputs.data, 1)
 
