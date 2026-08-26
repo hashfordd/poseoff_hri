@@ -213,9 +213,10 @@ def flowpose_lk(frame1, frame2, poses, window_size=3, threshold=0.2, dilation=1,
     )
     flow_windows[:, skip_points] = np.zeros((2*(window_size**2), len(skip_points)))
 
-    # Reshape ((C H W) (V M) -> (C H W) V M)
+    # Reshape ((C H W) (M V) -> (C H W) V M)
+    # get_poses packs the 34 slots person-major, so the unpack must read (M V) too
     # Here, C is the x and y channels of flow, H and W are height and width respectively
-    flow_windows = rearrange(flow_windows, 'W (V M) -> W V M', V=17, M=2)
+    flow_windows = rearrange(flow_windows, 'W (M V) -> W V M', M=2, V=17)
     return flow_windows, p0, p1
 
 
