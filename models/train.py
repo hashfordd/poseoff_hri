@@ -24,12 +24,15 @@ def train(learning_rate, batch_size, epochs):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
-    
+    # Both curves accumulate across the whole run. Initialising them inside the
+    # epoch loop reset them every epoch, leaving a single point to plot.
+    loss_arr = []
+    val_loss_arr = []
+
     for epoch in range (epochs):
         model.train()
 
         total_loss = 0
-        loss_arr = []
         for batch_x, batch_y, batch_mask in train_loader:
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
             batch_mask = batch_mask.to(device)
@@ -46,15 +49,17 @@ def train(learning_rate, batch_size, epochs):
             total_loss += loss.item()
 
 
-        loss_arr.append(loss.item())
-        print(f"Epoch {epoch}/{epochs}, Loss: {loss}")
+        # total_loss is accumulated over the epoch and was previously thrown away,
+        # while loss.item() is whatever the final batch happened to score.
+        avg_train_loss = total_loss / len(train_loader)
+        loss_arr.append(avg_train_loss)
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_train_loss:.4f}")
 
 
         model.eval()
         correct = 0
         total = 0
-        total_val_loss = 0 
-        val_loss_arr = []
+        total_val_loss = 0
         with torch.no_grad():
             for batch_x, batch_y, batch_mask in test_loader:
                 batch_x, batch_y = batch_x.to(device), batch_y.to(device)
@@ -69,11 +74,10 @@ def train(learning_rate, batch_size, epochs):
                 total += batch_y.size(0)
                 correct += (predicted == batch_y).sum().item()
 
-                avg_loss = total_val_loss/len(test_loader)
-                
+        avg_loss = total_val_loss / len(test_loader)
         val_loss_arr.append(avg_loss)
 
-        print(f'Validation Loss: {avg_loss}')
+        print(f'Validation Loss: {avg_loss:.4f}')
         print(f"Test Accuracy after Epoch {epoch+1}: {100 * correct / total:.2f}%")
 
     
