@@ -28,7 +28,7 @@ def main(pose_model, im_height, im_width):
             img2 = np.asanyarray(color_frame.get_data())
             img3 = np.asanyarray(color_frame.get_data())
 
-            poses = get_poses(img2, pose_model, threshold=threshold)
+            poses = get_poses(img2, pose_model, threshold=threshold, device=device)
             img2_grey = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 
             poseoff, p0, p1 = flowpose_lk(img1_grey, img2_grey, poses, window_size=window_size, dilation=dilation)
@@ -75,6 +75,10 @@ if __name__ == '__main__':
 
     config.enable_stream(rs.stream.color, im_width , im_height, rs.format.bgr8, 30)
     config.enable_stream(rs.stream.depth, im_width, im_height, rs.format.z16, 30)
+
+    # Resolve once rather than per frame
+    device = resolve_device()
+    print(f"Running pose inference on device: {device}")
 
     # Create YOLO-pose model
     pose_model = YOLO("yolo26m-pose.pt")
