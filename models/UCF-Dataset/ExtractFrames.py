@@ -56,7 +56,9 @@ def apply_poseOFF(video_sequence, pose_model, window_size, threshold, dilation):
         else:
             frame2_grey = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
 
-        poses = get_poses(frame1_grey, pose_model)
+        # Pose detection runs on the colour frame, matching pose.py. YOLO pose
+        # expects 3 channel BGR; the greyscale frames exist only for flowpose_lk.
+        poses = get_poses(frame1, pose_model, threshold=threshold)
 
         flow_poses, p0, p1 = flowpose_lk(frame1_grey, frame2_grey, poses,  window_size, threshold, dilation)
 
