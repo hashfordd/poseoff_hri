@@ -32,44 +32,53 @@ def process_single_video(args):
     return frames, video_path
 
 def apply_poseOFF(video_sequence, pose_model, window_size, threshold, dilation):
-    
+
     print(f"Total frames: {len(video_sequence)}")
 
     flow_sequence = []
-                
-    for i in range(len(video_sequence) - 1):        
+
+    for i in range(len(video_sequence) - 1):
         frame1 = video_sequence[i]
+        frame2 = video_sequence[i+1]
+
+        # Guard before the colour conversion, not after it: cvtColor(None) raises
+        # rather than falling through to the check.
+        if frame1 is None or frame2 is None:
+            continue
+
         if len(frame1.shape) == 2 or frame1.shape[2] == 1:
             frame1_grey = frame1.squeeze()
         else:
             frame1_grey = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
 
-        frame2 = video_sequence[i+1]
         if len(frame2.shape) == 2 or frame2.shape[2] == 1:
             frame2_grey = frame2.squeeze()
         else:
             frame2_grey = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
-        if frame1 is None or frame2  is None:
-            continue
-                
+
         poses = get_poses(frame1_grey, pose_model)
 
         flow_poses, p0, p1 = flowpose_lk(frame1_grey, frame2_grey, poses,  window_size, threshold, dilation)
-          
+
+        # The append must not be nested in the isinstance check. It only ever ran
+        # because flowpose_lk happens to return numpy; if that changed the
+        # sequence would silently stay empty.
         if not isinstance(flow_poses, torch.Tensor):
             flow_poses = torch.tensor(flow_poses, device=poses.device)
-            flow_sequence.append(flow_poses)
-            
-        if len(flow_sequence) > 0:
-            video_tensor = torch.stack(flow_sequence, dim=0) # Shape: (T, C*W, V, M)
-            # T is the number of frames in video_sequence,
-            # C*W is the Cordinates of the Flow chennels * Window_size
-            # V Is the numbero of Joints
-            # M is number of people in frame 
-            
-            # Convert Tensor to numpy then save
-            video_tensor = video_tensor.detach().cpu().numpy()
-            return video_tensor
+        flow_sequence.append(flow_poses)
+
+    if not flow_sequence:
+        return None
+
+    # Stack once, after the whole clip has been walked. Shape: (T, C*W, V, M)
+    # T is len(video_sequence) - 1, one flow field per consecutive frame pair
+    # C*W is the flow coordinate channels * window_size**2
+    # V is the number of joints
+    # M is the number of people in frame
+    video_tensor = torch.stack(flow_sequence, dim=0)
+
+    # Convert Tensor to numpy then save
+    return video_tensor.detach().cpu().numpy()
 
 def extract_dataset_frames(dataset_dir, output_dir, max_workers, pose_model,
                            window_size=5, threshold=0.2, dilation=1):
