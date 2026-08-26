@@ -45,6 +45,10 @@ def main(pose_model, im_height, im_width):
 
             cv2.imshow("RealSense D456 Viewer", img2)
 
+            # Advance the reference frame. Lucas-Kanade assumes small displacement
+            # between consecutive frames; without this it tracks frame 1 -> frame N
+            # forever and loses the target within about half a second.
+            img1_grey = img2_grey
 
             key = cv2.waitKey(1)
             if key == ord('q'):
